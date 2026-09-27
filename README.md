@@ -145,23 +145,29 @@ Issue or renew server (leaf) certificates signed by the CA. Supports:
 
 ```bash
 # Create a new certificate
-./issue_cert.sh create <domain> <hostname> <ip>
+./issue_cert.sh create <domain> <hostname> [ip]
 
 # Renew a certificate
-./issue_cert.sh renew [--revoke-old] <domain> <hostname> <ip>
+./issue_cert.sh renew [--revoke-old] <domain> <hostname> [ip]
 ```
 
 **Example:**
 
 ```bash
-./issue_cert.sh create example.com web01 192.168.1.10
-./issue_cert.sh renew --revoke-old example.com web01 192.168.1.10
+./issue_cert.sh create example.com web01
+./issue_cert.sh renew --revoke-old example.com web01
 ```
+
+`ip` is optional — pass it only if the host needs an IP address in `subjectAltName` (e.g. clients
+connect by IP rather than by resolvable name). When omitted, the certificate's SANs are just
+`<hostname>` and `<hostname>.<domain>`.
 
 ### **Notes**
 
 * Certificates are stored under `./ssl/<domain>/<host>/`
-* `.cert_info` tracks IP and CN for comparison to avoid unnecessary regeneration
+* `.cert_info` tracks IP (if given) and CN for comparison to avoid unnecessary regeneration
+* Adding or removing the `ip` argument on a later `create`/`renew` run counts as a change — a new
+  cert is issued to match the new SAN list
 * Leaf cert **must not outlive the CA cert**
 * `--revoke-old` will revoke previous cert in the CA index
 * This system is designed for **_Internal Use Only_**. As such, issue_cert.sh creates **key**, **csr**, and **crt** rather than simply signing a csr generated elsewhere. The user is expected to know how to handle keys securely.

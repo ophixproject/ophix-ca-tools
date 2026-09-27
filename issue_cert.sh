@@ -39,14 +39,14 @@ if [ "$MODE" != "create" ] && [ "$MODE" != "renew" ]; then
     exit 1
 fi
 
-if [ $# -ne 3 ]; then
-    echo "Usage: $0 $MODE [--revoke-old] <domain> <hostname> <ip>"
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+    echo "Usage: $0 $MODE [--revoke-old] <domain> <hostname> [ip]"
     exit 1
 fi
 
 DOMAIN="$1"
 HOST="$2"
-IP="$3"
+IP="${3:-}"
 
 HOST_DIR="$CERTS_BASE/$DOMAIN/$HOST"
 
@@ -134,8 +134,11 @@ extendedKeyUsage = serverAuth
 [ alt_names ]
 DNS.1 = ${HOST}
 DNS.2 = ${HOST}.${DOMAIN}
-IP.1  = ${IP}
 EOF
+
+if [ -n "$IP" ]; then
+    echo "IP.1  = ${IP}" >> "$CNF"
+fi
 
 # =========================
 # Generate or reuse key
