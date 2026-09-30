@@ -11,6 +11,16 @@ solve with `ophix-certs`. `ophix-ca-tools` is the answer: a standalone CA you ca
 machine (your laptop, a jump box, the new server itself) before any Ophix server exists, to issue
 the first cert a server needs to come up over HTTPS at all.
 
+## Quick Start for Ophix Users
+
+If you're creating your first Ophix server, you'll need Steps 0, 1, 2, and 10. For every server
+after that, you'll only need Step 2 — the CA itself and its bundle are already set up.
+
+*Tip:* After generating the CA bundle (Step 10), add it to your workstation's trusted certificate
+store (the location and method vary by OS). This lets your browser recognise the admin
+interface's certificate as valid. Skip it and you'll see untrusted-certificate warnings every time
+you browse there.
+
 Typical uses:
 - **Bootstrapping** — issue a cert for the very first Ophix server in a fleet, before `ophix-certs`
   has anywhere to run.
@@ -20,6 +30,8 @@ Typical uses:
   other Ophix package.
 - **Emergency/offline issuance** — a CA that doesn't depend on a database, a web server, or network
   access to anything is useful when the fleet's normal cert-issuance path is down.
+- **Internal service TLS** — certs for services that never face the public internet (e.g. a
+  MariaDB server) but still need encryption in transit between hosts.
 
 This tool has no dependency on any other Ophix package and no Ophix package depends on it — it is
 plain OpenSSL wrapped in shell scripts, usable with or without the rest of Ophix.
@@ -50,7 +62,7 @@ integration path between them since none is needed.
 
 ---
 
-## 0️. Installation & Setup
+## 0. Installation & Setup
 
 ### Clone the repository, make scripts executable
 
@@ -58,50 +70,13 @@ integration path between them since none is needed.
 git clone git@github.com:ophixproject/ophix-ca-tools.git
 cd ophix-ca-tools
 chmod +x *.sh
-
-```
-
-Or, if you are switching branches in an existing repo:
-
-```bash
-git checkout <branch-name>
 ```
 
 ---
 
-### Protect secrets from being committed
+## 1. Initialize the CA — `init_ca.sh`
 
-Add a `.gitignore` file (or update it) to exclude CA private keys, leaf keys, and any generated certs:
-
-```
-# Ignore private keys and sensitive files
-*.key
-*.csr
-*.crt
-.env
-ssl/
-*/private/
-```
-
-> This ensures that your CA private key, leaf keys, and `.env` file are **never accidentally committed** to Git.
-
----
-
-### Optional: Verify
-
-```bash
-git status
-```
-
-* Only scripts and documentation should be staged for commit
-* No private keys, certs, or `.env` files should appear
-
-
----
-
-## **1️. Initialize the CA — `init_ca.sh`**
-
-### **Purpose**
+### Purpose
 
 Creates a new internal Certificate Authority (CA) structure, including:
 
@@ -111,7 +86,7 @@ Creates a new internal Certificate Authority (CA) structure, including:
 * Index files (`index.txt`) and serial files
 * `.env` file for scripts to know CA location
 
-### **Usage**
+### Usage
 
 ```bash
 ./init_ca.sh <CertificateAuthorityName> <Country> <State> <City> <Organization> <OrgUnit>
@@ -123,7 +98,7 @@ Creates a new internal Certificate Authority (CA) structure, including:
 ./init_ca.sh Fleet AU Victoria Melbourne Ophix "Internal Systems"
 ```
 
-### **Notes**
+### Notes
 
 * `Country` must be **2-letter ISO code** (e.g., AU, US, GB)
 * Script will create `.env` containing `CA_CONFIG` and defaults
@@ -131,9 +106,9 @@ Creates a new internal Certificate Authority (CA) structure, including:
 
 ---
 
-## **2️. Issue or Renew Leaf Certificates — `issue_cert.sh`**
+## 2. Issue or Renew Leaf Certificates — `issue_cert.sh`
 
-### **Purpose**
+### Purpose
 
 Issue or renew server (leaf) certificates signed by the CA. Supports:
 
@@ -141,7 +116,7 @@ Issue or renew server (leaf) certificates signed by the CA. Supports:
 * **Renew** existing certificate
 * Optional **revoke old certificate** during renewal
 
-### **Usage**
+### Usage
 
 ```bash
 # Create a new certificate
@@ -162,7 +137,7 @@ Issue or renew server (leaf) certificates signed by the CA. Supports:
 connect by IP rather than by resolvable name). When omitted, the certificate's SANs are just
 `<hostname>` and `<hostname>.<domain>`.
 
-### **Notes**
+### Notes
 
 * Certificates are stored under `./ssl/<domain>/<host>/`
 * `.cert_info` tracks IP (if given) and CN for comparison to avoid unnecessary regeneration
@@ -170,18 +145,20 @@ connect by IP rather than by resolvable name). When omitted, the certificate's S
   cert is issued to match the new SAN list
 * Leaf cert **must not outlive the CA cert**
 * `--revoke-old` will revoke previous cert in the CA index
-* This system is designed for **_Internal Use Only_**. As such, issue_cert.sh creates **key**, **csr**, and **crt** rather than simply signing a csr generated elsewhere. The user is expected to know how to handle keys securely.
+* This system is designed for **internal use only** — `issue_cert.sh` creates the **key**, **CSR**,
+  and **crt** together, rather than signing a CSR generated elsewhere. You're expected to know how
+  to handle private keys securely.
 
 ---
 
-## **3️. Check certificate expiry — `check_expiry.sh`**
+## 3. Check Certificate Expiry — `check_expiry.sh`
 
-### **Purpose**
+### Purpose
 
 * Warn if CA or leaf certificates are approaching expiry
 * Default warning threshold: 30 days (customizable)
 
-### **Usage**
+### Usage
 
 ```bash
 # Default 30-day warning
@@ -191,21 +168,21 @@ connect by IP rather than by resolvable name). When omitted, the certificate's S
 ./check_expiry.sh 60   # warn if any cert expires in <60 days
 ```
 
-### **What it checks**
+### What It Checks
 
 * **CA cert** from `.env`
 * All **leaf certs under ./ssl** recursively (e.g., `./ssl/domain/host/host.crt`)
 
-### **Notes**
+### Notes
 
 * Prints number of days left until expiry for each cert
 * Helps plan CA renewal and leaf certificate rotations
 
 ---
 
-## **4️. Renew the CA certificate — `renew_ca.sh`**
+## 4. Renew the CA Certificate — `renew_ca.sh`
 
-### **Purpose**
+### Purpose
 
 Renew the CA certificate when it is approaching expiry, **reusing the existing private key**:
 
@@ -213,13 +190,13 @@ Renew the CA certificate when it is approaching expiry, **reusing the existing p
 * Archives old CA cert as `*.old` for a grace period
 * Prints fingerprints for verification
 
-### **Usage**
+### Usage
 
 ```bash
 ./renew_ca.sh
 ```
 
-### **Workflow / Best Practices**
+### Workflow / Best Practices
 
 1. Run **before CA expires**, ideally at least 1 year prior if leaf certs are 1 year
 2. Keep old CA cert (`*.old`) during client rollout
@@ -228,16 +205,16 @@ Renew the CA certificate when it is approaching expiry, **reusing the existing p
 
 ---
 
-## **5️. Rebuild CA index — `rebuild_index.sh`**
+## 5. Rebuild CA Index — `rebuild_index.sh`
 
-### **Purpose**
+### Purpose
 
 Rebuilds the CA index (`index.txt`) from a directory of existing certificates. Useful if:
 
 * Index was lost or corrupted
 * Migrating an old CA structure
 
-### **Usage**
+### Usage
 
 ```bash
 ./rebuild_index.sh <certs_directory> <output_index_file>
@@ -249,7 +226,7 @@ Rebuilds the CA index (`index.txt`) from a directory of existing certificates. U
 ./rebuild_index.sh ./ssl/Fastrack-CA/certs ./ssl/Fastrack-CA/index.txt
 ```
 
-### **Notes**
+### Notes
 
 * Reads expiration date, serial, and subject from each `.crt` file
 * Creates a proper OpenSSL CA index file
@@ -257,7 +234,7 @@ Rebuilds the CA index (`index.txt`) from a directory of existing certificates. U
 
 ---
 
-## **6️. Recommended Certificate Lifecycle Practices**
+## 6. Recommended Certificate Lifecycle Practices
 
 | Item         | Recommended validity | Renewal notes                                         |
 | ------------ | -------------------- | ----------------------------------------------------- |
@@ -268,7 +245,7 @@ Rebuilds the CA index (`index.txt`) from a directory of existing certificates. U
 
 ---
 
-## **7️. Directory Structure Overview**
+## 7. Directory Structure Overview
 
 ```
 .
@@ -298,7 +275,7 @@ Rebuilds the CA index (`index.txt`) from a directory of existing certificates. U
 
 ---
 
-## **8️. Quick Workflow Summary**
+## 8. Quick Workflow Summary
 
 1. **Initialize CA**: `./init_ca.sh ...` → sets up CA + `.env`
 2. **Issue leaf certs**: `./issue_cert.sh create ...`
@@ -309,7 +286,7 @@ Rebuilds the CA index (`index.txt`) from a directory of existing certificates. U
 
 ---
 
-## **9. Tips for Future You**
+## 9. Tips for Future You
 
 * Always **backup CA private key and certs** before renewal
 * Do **not issue leaf certs that outlive the CA cert**
@@ -319,9 +296,9 @@ Rebuilds the CA index (`index.txt`) from a directory of existing certificates. U
 
 ---
 
-## **10. Generate a CA Bundle — `generate_ca_bundle.sh`**
+## 10. Generate a CA Bundle — `generate_ca_bundle.sh`
 
-### **Purpose**
+### Purpose
 
 Creates a single file containing all **current valid CA certificates**.
 
@@ -331,7 +308,7 @@ Creates a single file containing all **current valid CA certificates**.
 
 ---
 
-### **Usage**
+### Usage
 
 ```bash
 # Default output filename (<DN_O><DN_OU>.ca_bundle)
@@ -343,7 +320,7 @@ Creates a single file containing all **current valid CA certificates**.
 
 ---
 
-### **Example**
+### Example
 
 If your `.env` contains:
 
@@ -368,7 +345,7 @@ in the current directory, containing all valid CA certs.
 
 ---
 
-### **Notes**
+### Notes
 
 * Only includes **valid CA certificates** (expiration > current date)
 * Useful during **CA rollover**, when both old and new CA certs are still valid
