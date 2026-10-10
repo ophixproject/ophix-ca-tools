@@ -223,7 +223,7 @@ Rebuilds the CA index (`index.txt`) from a directory of existing certificates. U
 **Example:**
 
 ```bash
-./rebuild_index.sh ./ssl/Fastrack-CA/certs ./ssl/Fastrack-CA/index.txt
+./rebuild_index.sh ./ssl/Ophix-CA/certs ./ssl/Ophix-CA/index.txt
 ```
 
 ### Notes
